@@ -157,6 +157,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               showDialog(
                                 context: context,
                                 builder: (context) => SaveDialog(
+                                  canvasSize: canvasSize,
                                   onSave: (imageData) async {
                                     final codec =
                                         await ui.instantiateImageCodec(
@@ -199,16 +200,14 @@ class _MyHomePageState extends State<MyHomePage> {
                     maxCrossAxisExtent: 350,
                     mainAxisSpacing: 20,
                     crossAxisSpacing: 20,
+                    physics: const NeverScrollableScrollPhysics(),
                     children: List.filled(
                       10,
-                      Container(
-                        color: Colors.red,
-                        child: savedImage == null
-                            ? const Text("no drawing")
-                            : DrawingViewer(
-                                image: savedImage!,
-                              ),
-                      ),
+                      savedImage == null
+                          ? const Text("no drawing")
+                          : DrawingViewer(
+                              image: savedImage!,
+                            ),
                     ),
                   ),
                 ),

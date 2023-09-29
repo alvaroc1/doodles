@@ -11,9 +11,14 @@ class DrawingViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: CustomPaint(
-        painter: DrawingViewerPainter(image: image),
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black),
+      ),
+      child: ClipRect(
+        child: CustomPaint(
+          painter: DrawingViewerPainter(image: image),
+        ),
       ),
     );
   }
@@ -25,11 +30,12 @@ class DrawingViewerPainter extends CustomPainter {
   DrawingViewerPainter({super.repaint, required this.image});
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / image.width, size.height / image.height);
     canvas.drawImage(image, Offset.zero, Paint());
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return false;
+    return true;
   }
 }

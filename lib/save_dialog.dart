@@ -7,9 +7,15 @@ import 'cute_canvas.dart';
 
 class SaveDialog extends StatelessWidget {
   final List<DrawCommand> commands;
+  final double canvasSize;
   final void Function(ByteData) onSave;
 
-  const SaveDialog({super.key, required this.commands, required this.onSave});
+  const SaveDialog({
+    super.key,
+    required this.commands,
+    required this.onSave,
+    required this.canvasSize,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +58,10 @@ class SaveDialog extends StatelessWidget {
                 drawCommands(canvas, commands);
                 final picture = recorder.endRecording();
 
-                final image = await picture.toImage(200, 200);
+                final image = await picture.toImage(
+                  canvasSize.toInt(),
+                  canvasSize.toInt(),
+                );
                 final byteData =
                     await image.toByteData(format: ui.ImageByteFormat.png);
 
