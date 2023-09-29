@@ -1,4 +1,4 @@
-package com.example.drawings
+package com.example.doodles
 
 import io.flutter.embedding.android.FlutterActivity
 
