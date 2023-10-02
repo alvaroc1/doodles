@@ -5,17 +5,27 @@ import 'dart:ui' as ui;
 
 import 'cute_canvas.dart';
 
-class SaveDialog extends StatelessWidget {
+class SaveDialog extends StatefulWidget {
   final List<DrawCommand> commands;
   final double canvasSize;
-  final void Function(ByteData) onSave;
+  final bool isSaving;
+  final void Function(String, String, ByteData) onSave;
 
   const SaveDialog({
     super.key,
     required this.commands,
     required this.onSave,
     required this.canvasSize,
+    required this.isSaving,
   });
+
+  @override
+  State<SaveDialog> createState() => _SaveDialogState();
+}
+
+class _SaveDialogState extends State<SaveDialog> {
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _authorController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -23,9 +33,10 @@ class SaveDialog extends StatelessWidget {
       title: const Text("Save your drawing"),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       children: [
-        const TextField(
+        TextField(
           autofocus: true,
-          decoration: InputDecoration(
+          controller: _titleController,
+          decoration: const InputDecoration(
             // border: OutlineInputBorder(),
             labelText: 'Title',
             // floatingLabelBehavior: FloatingLabelBehavior.always,
@@ -33,8 +44,9 @@ class SaveDialog extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 30, width: 300),
-        const TextField(
-          decoration: InputDecoration(
+        TextField(
+          controller: _authorController,
+          decoration: const InputDecoration(
             // border: OutlineInputBorder(),
             // floatingLabelBehavior: FloatingLabelBehavior.always,
             labelText: 'Author',
@@ -55,19 +67,23 @@ class SaveDialog extends StatelessWidget {
               onPressed: () async {
                 final recorder = ui.PictureRecorder();
                 final canvas = Canvas(recorder);
-                drawCommands(canvas, commands);
+                drawCommands(canvas, widget.commands);
                 final picture = recorder.endRecording();
 
                 final image = await picture.toImage(
-                  canvasSize.toInt(),
-                  canvasSize.toInt(),
+                  widget.canvasSize.toInt(),
+                  widget.canvasSize.toInt(),
                 );
                 final byteData =
                     await image.toByteData(format: ui.ImageByteFormat.png);
 
-                onSave(byteData!);
+                widget.onSave(
+                  _titleController.text,
+                  _authorController.text,
+                  byteData!,
+                );
               },
-              child: const Text("Save"),
+              child: widget.isSaving ? const Text("Saving....") : const Text("Save"),
             ),
           ],
         )

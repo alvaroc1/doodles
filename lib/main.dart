@@ -4,17 +4,25 @@ import 'dart:ui' as ui;
 import 'package:doodles/color_toolbar.dart';
 import 'package:doodles/cute_canvas.dart';
 import 'package:doodles/drawing_viewer.dart';
+import 'backend_client.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'save_dialog.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp(
+    backendClient: BackendClient.instance,
+  ));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final BackendClient backendClient;
+
+  const MyApp({
+    super.key,
+    required this.backendClient,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -25,14 +33,23 @@ class MyApp extends StatelessWidget {
             seedColor: const Color.fromARGB(255, 10, 72, 180)),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Unison Doodles'),
+      home: MyHomePage(
+        title: 'Unison Doodles',
+        backendClient: backendClient,
+      ),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  final BackendClient backendClient;
+
+  const MyHomePage({
+    super.key,
+    required this.title,
+    required this.backendClient,
+  });
 
   final String title;
 
@@ -51,9 +68,17 @@ class _MyHomePageState extends State<MyHomePage> {
     Colors.purple,
   ];
 
+  final _scrollController = ScrollController();
+
   int selectedColor = 0;
 
   List<DrawCommand> commands = [];
+
+  List<ImageData> savedImages = [];
+
+  int? cursor = null;
+
+  bool saving = false;
 
   // ByteData? savedImageData;
 
@@ -63,6 +88,61 @@ class _MyHomePageState extends State<MyHomePage> {
     if (!await launchUrl(url)) {
       throw Exception('Could not launch $url');
     }
+  }
+
+  @override
+  initState() {
+    super.initState();
+    _loadImages();
+
+    _scrollController.addListener(() {
+      if (cursor != null && _scrollController.offset > _scrollController.position.maxScrollExtent * .7) {
+
+        _loadNextPage();
+      }
+    });
+  }
+
+  void _loadNextPage() async {
+    final nextPage = await widget.backendClient.getPageOfDrawings(cursor);
+    cursor = nextPage.cursor;
+
+    final hydrated = await _hydrateImages(nextPage.drawings);
+
+    setState(() {
+      savedImages.addAll(hydrated);
+    });
+  }
+
+  Future<void> _loadImages() async {
+    final page = await widget.backendClient.getPageOfDrawings(null);
+    final decodedImages =
+        await _hydrateImages(page.drawings);
+    cursor = page.cursor;
+
+    setState(() {
+      savedImages = decodedImages;
+    });
+  }
+
+  Future<List<ImageData>> _hydrateImages(List<DrawingData> drawings) async {
+    final futures = drawings.map((drawing) async {
+      final codec = await ui
+          .instantiateImageCodec(drawing.canvasData.buffer.asUint8List());
+      final frame = await codec.getNextFrame();
+      return ImageData(
+          title: drawing.title, author: drawing.author, image: frame.image);
+    });
+
+    final decodedImages = await Future.wait(futures);
+
+    return decodedImages;
+  }
+
+  void _clear() {
+    setState(() {
+      commands = [];
+    });
   }
 
   @override
@@ -95,6 +175,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
       ),
       body: SingleChildScrollView(
+        controller: _scrollController,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -144,11 +225,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           FilledButton.tonal(
-                            onPressed: () {
-                              setState(() {
-                                commands = [];
-                              });
-                            },
+                            onPressed: _clear,
                             child: const Text("Clear"),
                           ),
                           const SizedBox(width: 8),
@@ -157,15 +234,30 @@ class _MyHomePageState extends State<MyHomePage> {
                               showDialog(
                                 context: context,
                                 builder: (context) => SaveDialog(
+                                  isSaving: saving,
                                   canvasSize: canvasSize,
-                                  onSave: (imageData) async {
-                                    final codec =
-                                        await ui.instantiateImageCodec(
-                                            imageData.buffer.asUint8List());
-                                    final frame = await codec.getNextFrame();
+                                  onSave: (title, author, imageData) async {
                                     setState(() {
-                                      savedImage = frame.image;
+                                      saving = true;
                                     });
+                                    await widget.backendClient
+                                        .putDrawing(DrawingData(
+                                      title: title,
+                                      author: author,
+                                      time:
+                                          DateTime.now().millisecondsSinceEpoch,
+                                      canvasData: imageData,
+                                    ));
+
+                                    await _loadImages();
+
+                                    setState(() {
+                                      saving = false;
+                                    });
+
+                                    _clear();
+
+                                    Navigator.of(context).pop();
                                   },
                                   commands: commands,
                                 ),
@@ -198,17 +290,52 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: GridView.extent(
                     shrinkWrap: true,
                     maxCrossAxisExtent: 350,
+                    childAspectRatio: .8,
                     mainAxisSpacing: 20,
                     crossAxisSpacing: 20,
                     physics: const NeverScrollableScrollPhysics(),
-                    children: List.filled(
-                      10,
-                      savedImage == null
-                          ? const Text("no drawing")
-                          : DrawingViewer(
-                              image: savedImage!,
+                    children: savedImages.map((drawing) {
+                      return Card(
+                        clipBehavior: Clip.hardEdge,
+                        elevation: 2.0,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                return SizedBox(
+                                  width: constraints.maxWidth,
+                                  height: constraints.maxWidth,
+                                  child: DrawingViewer(
+                                    image: drawing.image,
+                                  ),
+                                );
+                              },
                             ),
-                    ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              child: Text(
+                                drawing.title,
+                                style: (theme.textTheme.titleLarge ??
+                                        const TextStyle())
+                                    .copyWith(
+                                        fontWeight: FontWeight.bold, height: 2),
+                              ),
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              child: Text(
+                                drawing.author,
+                                style: theme.textTheme.titleMedium ??
+                                    const TextStyle(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
               ],

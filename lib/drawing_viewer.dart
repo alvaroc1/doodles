@@ -12,9 +12,7 @@ class DrawingViewer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black),
-      ),
+      color: Colors.white,
       child: ClipRect(
         child: CustomPaint(
           painter: DrawingViewerPainter(image: image),
